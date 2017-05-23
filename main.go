@@ -70,7 +70,10 @@ func (cli Client) Do(r *http.Request) (*http.Response, error) {
 	r.Header.Set("User-Agent", "go.mozilla.org/digigo "+Version)
 	r.Header.Set("X-DC-DEVKEY", cli.token)
 	r.Header.Set("Accept", "application/json")
-	r.Header.Set("Content-Type", "application/json")
+	if r.Method == http.MethodPost && r.Body != nil {
+		// POST Body is always JSON, so set the content type
+		r.Header.Set("Content-Type", "application/json")
+	}
 	if cli.debug {
 		dump, err := httputil.DumpRequest(r, true)
 		if err != nil {
