@@ -13,23 +13,24 @@ import (
 type Order struct {
 	Certificate struct {
 		CommonName        string   `json:"common_name"`
+		DNSNames          []string `json:"dns_names"`
 		Csr               string   `json:"csr"`
-		OrganizationUnits []string `json:"organization_units"`
+		OrganizationUnits []string `json:"organization_units,omitempty"`
 		ServerPlatform    struct {
 			ID int `json:"id"`
-		} `json:"server_platform"`
+		} `json:"server_platform,omitempty"`
 		SignatureHash string `json:"signature_hash"`
-		ProfileOption string `json:"profile_option"`
+		ProfileOption string `json:"profile_option,omitempty"`
 	} `json:"certificate"`
 	Organization struct {
 		ID int `json:"id"`
 	} `json:"organization"`
 	ValidityYears               int    `json:"validity_years"`
-	CustomExpirationDate        string `json:"custom_expiration_date"`
-	Comments                    string `json:"comments"`
-	DisableRenewalNotifications bool   `json:"disable_renewal_notifications"`
-	RenewalOfOrderID            int    `json:"renewal_of_order_id"`
-	PaymentMethod               string `json:"payment_method"`
+	CustomExpirationDate        string `json:"custom_expiration_date,omitempty"`
+	Comments                    string `json:"comments,omitempty"`
+	DisableRenewalNotifications bool   `json:"disable_renewal_notifications,omitempty"`
+	RenewalOfOrderID            int    `json:"renewal_of_order_id,omitempty"`
+	PaymentMethod               string `json:"payment_method,omitempty"`
 }
 
 type orderResponse struct {
@@ -61,7 +62,7 @@ func (cli Client) SubmitOrder(order Order, productNameID string) (int, error) {
 		return -1, errors.Wrap(err, "failed to submit request to digicert api")
 	}
 	if resp.StatusCode != http.StatusCreated {
-		return -1, errors.Errorf("failed to create order: http %d %s", resp.StatusCode, resp.Status)
+		return -1, errors.Errorf("failed to create order: %s", resp.Status)
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

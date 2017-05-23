@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/x509"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -10,6 +11,7 @@ import (
 )
 
 var (
+	debug      = flag.Bool("D", false, "Enable debug output")
 	host       = flag.String("host", "", "Comma-separated hostnames and IPs to generate a certificate for")
 	ou         = flag.String("ou", "Cloud Services", "Organizational Unit")
 	org        = flag.String("org", "Mozilla Corporation", "Organization")
@@ -32,18 +34,27 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if *debug {
+		cli.EnableDebug()
+	}
 	_, err = cli.ViewProductList()
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	// Step 1: make a certificate request and a private key
-	csr, csrPEM, _, err := makeCSRAndKey()
+	csr, csrPEM, keyPEM, err := makeCSRAndKey()
 	if err != nil {
 		log.Fatal(err)
 	}
+	if *debug {
+		fmt.Printf("%s\n%s\n", csrPEM, keyPEM)
+	}
+
 	// Step 2: submit an order to digicert
 	var order digigo.Order
 	order.Certificate.CommonName = csr.Subject.CommonName
+	order.Certificate.DNSNames = csr.DNSNames
 	order.Certificate.Csr = csrPEM
 	order.Certificate.OrganizationUnits = csr.Subject.OrganizationalUnit
 	order.Certificate.ServerPlatform.ID = 45 // nginx, aka. standard PEM
@@ -57,10 +68,11 @@ func main() {
 		order.Certificate.SignatureHash = "sha256"
 	}
 	// FIXME: actually call ListOrganizations
-	order.Organization.ID = 110462 // mozilla org ID
-	orderID, err := cli.SubmitOrder(order, "ssl_plus")
+	order.Organization.ID = 147486 // mozilla org ID
+	orderID, err := cli.SubmitOrder(order, "ssl")
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println(orderID)
+
+	log.Println("placed order with ID", orderID)
 }

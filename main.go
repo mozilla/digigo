@@ -4,9 +4,13 @@ package digigo // import "go.mozilla.org/digigo"
 
 import (
 	"crypto/tls"
-	"fmt"
+	"encoding/json"
+	"io/ioutil"
+	"log"
 	"net/http"
+	"net/http/httputil"
 
+	"github.com/fatih/color"
 	"github.com/pkg/errors"
 )
 
@@ -63,12 +67,16 @@ func (cli *Client) DisableDebug() {
 // Do is a thin wrapper around http.Client.Do() that inserts an authentication header
 // to the outgoing request and checks response codes
 func (cli Client) Do(r *http.Request) (*http.Response, error) {
-	r.Header.Set("User-Agent", "Digicert Go Client "+Version)
+	r.Header.Set("User-Agent", "go.mozilla.org/digigo "+Version)
 	r.Header.Set("X-DC-DEVKEY", cli.token)
 	r.Header.Set("Accept", "application/json")
+	r.Header.Set("Content-Type", "application/json")
 	if cli.debug {
-		fmt.Printf("debug: %s %s %s\ndebug: User-Agent: %s\ndebug: X-DC-DEVKEY: %s\n",
-			r.Method, r.URL.String(), r.Proto, r.UserAgent(), r.Header.Get("X-DC-DEVKEY"))
+		dump, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			log.Fatal("failed to dump request in debug mode: ", err)
+		}
+		color.Green("--- debug: client request ---\n%s\n-----------------------------\n", dump)
 	}
 	// execute the request
 	resp, err := cli.requester.Do(r)
@@ -76,10 +84,33 @@ func (cli Client) Do(r *http.Request) (*http.Response, error) {
 		return nil, errors.New("received empty response from digicert api")
 	}
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to request the digicert api: %d %s", resp.StatusCode, resp.Status)
+		return nil, errors.Wrapf(err, "failed to request the digicert api: %s", resp.Status)
 	}
-	if resp.StatusCode > 200 {
-		return nil, errors.Errorf("failed to request the digicert api: %d %s", resp.StatusCode, resp.Status)
+	if cli.debug {
+		dump, err := httputil.DumpResponse(resp, true)
+		if err != nil {
+			log.Fatal("failed to dump response in debug mode: ", err)
+		}
+		color.Red("--- debug: digicert response ---\n%s\n--------------------------------\n", dump)
+	}
+
+	if resp.StatusCode >= 300 {
+		if resp.Body != nil {
+			defer resp.Body.Close()
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				return nil, errors.Errorf("failed to request the digicert api: %s. couldn't parse returned error %q: %s",
+					resp.Status, body, err)
+			}
+			var errs Errors
+			err = json.Unmarshal(body, &errs)
+			if err != nil {
+				return nil, errors.Errorf("failed to request the digicert api: %s. couldn't parse returned error %q: %s",
+					resp.Status, body, errs)
+			}
+			return nil, errors.Errorf("failed to request the digicert api: %s, %s", resp.Status, errs)
+		}
+		return nil, errors.Errorf("failed to request the digicert api: %s. no error was returned.", resp.Status)
 	}
 	return resp, nil
 }

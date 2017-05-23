@@ -18,7 +18,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func makeCSRAndKey() (csr x509.CertificateRequest, csrPEM, privKeyPEM string, err error) {
+func makeCSRAndKey() (csr *x509.CertificateRequest, csrPEM, privKeyPEM string, err error) {
 	var priv interface{}
 	switch *ecdsaCurve {
 	case "":
@@ -55,6 +55,11 @@ func makeCSRAndKey() (csr x509.CertificateRequest, csrPEM, privKeyPEM string, er
 	csrB, err := x509.CreateCertificateRequest(rand.Reader, &template, priv)
 	if err != nil {
 		err = errors.Wrap(err, "failed to generate CSR")
+		return
+	}
+	csr, err = x509.ParseCertificateRequest(csrB)
+	if err != nil {
+		err = errors.Wrap(err, "failed to parse CSR")
 		return
 	}
 	// convert the CSR bytes to PEM
